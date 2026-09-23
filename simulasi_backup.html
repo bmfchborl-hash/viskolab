@@ -1,0 +1,2456 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ViskoLab — Simulasi Viskositas 3D</title>
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+<style>
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#050b16}
+#renderCanvas{width:100%;height:100%;display:block;touch-action:none}
+</style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<script>
+function createScene(canvas, engine) {
+
+    // =========================================================
+    // 1. SCENE
+    // =========================================================
+
+    const scene = new BABYLON.Scene(engine);
+
+    scene.clearColor =
+        new BABYLON.Color4(
+            0.008,
+            0.012,
+            0.02,
+            1
+        );
+
+
+    // =========================================================
+    // 2. CAMERA
+    // =========================================================
+
+    const camera =
+        new BABYLON.ArcRotateCamera(
+            "camera",
+            -Math.PI / 2,
+            1.12,
+            18,
+            new BABYLON.Vector3(
+                0,
+                2.7,
+                0
+            ),
+            scene
+        );
+
+    camera.attachControl(canvas, true);
+
+    camera.lowerRadiusLimit = 11;
+    camera.upperRadiusLimit = 28;
+    camera.wheelPrecision = 35;
+
+
+    // =========================================================
+    // 3. LIGHT
+    // =========================================================
+
+    const hemi =
+        new BABYLON.HemisphericLight(
+            "hemi",
+            new BABYLON.Vector3(
+                0,
+                1,
+                0
+            ),
+            scene
+        );
+
+    hemi.intensity = 0.75;
+
+
+    const light =
+        new BABYLON.PointLight(
+            "labLight",
+            new BABYLON.Vector3(
+                0,
+                9,
+                4
+            ),
+            scene
+        );
+
+    light.intensity = 2.5;
+    light.range = 30;
+
+
+    const light2 =
+        new BABYLON.PointLight(
+            "frontLight",
+            new BABYLON.Vector3(
+                0,
+                4,
+                10
+            ),
+            scene
+        );
+
+    light2.intensity = 1.5;
+    light2.range = 25;
+
+
+    // =========================================================
+    // 4. SHADOW
+    // =========================================================
+
+    const shadowLight =
+        new BABYLON.DirectionalLight(
+            "shadowLight",
+            new BABYLON.Vector3(
+                -0.4,
+                -1,
+                -0.3
+            ),
+            scene
+        );
+
+    shadowLight.position =
+        new BABYLON.Vector3(
+            0,
+            12,
+            8
+        );
+
+
+    const shadowGenerator =
+        new BABYLON.ShadowGenerator(
+            1024,
+            shadowLight
+        );
+
+    shadowGenerator.useBlurExponentialShadowMap = true;
+    shadowGenerator.blurKernel = 24;
+
+
+    // =========================================================
+    // 5. MATERIAL HELPER
+    // =========================================================
+
+    function material(
+        name,
+        color,
+        alpha = 1
+    ) {
+
+        const m =
+            new BABYLON.StandardMaterial(
+                name,
+                scene
+            );
+
+        m.diffuseColor =
+            BABYLON.Color3.FromHexString(
+                color
+            );
+
+        m.specularColor =
+            new BABYLON.Color3(
+                0.8,
+                0.8,
+                0.8
+            );
+
+        m.specularPower = 64;
+        m.alpha = alpha;
+
+        return m;
+    }
+
+
+    // =========================================================
+    // 6. MATERIAL
+    // =========================================================
+
+    const tableMat =
+        material(
+            "Table",
+            "#202936"
+        );
+
+    const darkMat =
+        material(
+            "Dark",
+            "#111923"
+        );
+
+    const glassMat =
+        material(
+            "Glass",
+            "#8BA7BD",
+            0.22
+        );
+
+    glassMat.backFaceCulling = false;
+
+    glassMat.specularColor =
+        new BABYLON.Color3(
+            1,
+            1,
+            1
+        );
+
+    glassMat.specularPower = 128;
+
+
+    const waterMat =
+        material(
+            "Water",
+            "#009FE3",
+            0.78
+        );
+
+    const oilMat =
+        material(
+            "Oil",
+            "#E7B21A",
+            0.78
+        );
+
+    const honeyMat =
+        material(
+            "Honey",
+            "#E87812",
+            0.85
+        );
+
+    const rimMat =
+        material(
+            "Metal",
+            "#708090"
+        );
+
+
+    // =========================================================
+    // 7. TABLE
+    // =========================================================
+
+    const table =
+        BABYLON.MeshBuilder.CreateBox(
+            "LaboratoryTable",
+            {
+                width: 18,
+                height: 0.5,
+                depth: 7
+            },
+            scene
+        );
+
+    table.position.y = 0;
+    table.material = tableMat;
+
+    shadowGenerator.addShadowCaster(
+        table
+    );
+
+
+    // =========================================================
+    // 8. FLOOR
+    // =========================================================
+
+    const floor =
+        BABYLON.MeshBuilder.CreateGround(
+            "Floor",
+            {
+                width: 40,
+                height: 30
+            },
+            scene
+        );
+
+    floor.position.y = -0.27;
+    floor.material = darkMat;
+
+
+    // =========================================================
+    // 9. DATA CAIRAN
+    // =========================================================
+
+    const liquidData = {
+
+        Air: {
+            viscosity: 1.0,
+            color: "#009FE3",
+            material: waterMat,
+            speed: 1.00
+        },
+
+        Minyak: {
+            viscosity: 4.0,
+            color: "#E7B21A",
+            material: oilMat,
+            speed: 0.58
+        },
+
+        Madu: {
+            viscosity: 12.0,
+            color: "#E87812",
+            material: honeyMat,
+            speed: 0.30
+        }
+
+    };
+
+
+    // =========================================================
+    // 10. GLOBAL SETTINGS
+    // =========================================================
+
+    let running = false;
+
+    let selectedLiquids = {
+        Air: true,
+        Minyak: true,
+        Madu: true
+    };
+
+    let angleDeg = 30;
+    let volume = 70;
+    let temperature = 25;
+
+    const experiments = [];
+
+
+    // =========================================================
+    // 11. CREATE BEAKER
+    // =========================================================
+
+    function createBeaker(
+        name,
+        x,
+        data
+    ) {
+
+        const root =
+            new BABYLON.TransformNode(
+                name + "_root",
+                scene
+            );
+
+        root.position.x = x;
+        root.position.y = 0.25;
+
+
+        // BASE
+
+        const base =
+            BABYLON.MeshBuilder.CreateBox(
+                name + "_base",
+                {
+                    width: 2.7,
+                    height: 0.16,
+                    depth: 2.25
+                },
+                scene
+            );
+
+        base.parent = root;
+        base.position.y = 0.05;
+        base.material = rimMat;
+
+
+        // BACK
+
+        const back =
+            BABYLON.MeshBuilder.CreateBox(
+                name + "_back",
+                {
+                    width: 2.7,
+                    height: 2.45,
+                    depth: 0.08
+                },
+                scene
+            );
+
+        back.parent = root;
+
+        back.position.set(
+            0,
+            1.22,
+            -1.08
+        );
+
+        back.material = glassMat;
+
+
+        // FRONT
+
+        const front =
+            BABYLON.MeshBuilder.CreateBox(
+                name + "_front",
+                {
+                    width: 2.7,
+                    height: 2.45,
+                    depth: 0.08
+                },
+                scene
+            );
+
+        front.parent = root;
+
+        front.position.set(
+            0,
+            1.22,
+            1.08
+        );
+
+        front.material = glassMat;
+
+
+        // LEFT
+
+        const left =
+            BABYLON.MeshBuilder.CreateBox(
+                name + "_left",
+                {
+                    width: 0.08,
+                    height: 2.45,
+                    depth: 2.25
+                },
+                scene
+            );
+
+        left.parent = root;
+
+        left.position.set(
+            -1.30,
+            1.22,
+            0
+        );
+
+        left.material = glassMat;
+
+
+        // RIGHT
+
+        const right =
+            BABYLON.MeshBuilder.CreateBox(
+                name + "_right",
+                {
+                    width: 0.08,
+                    height: 2.45,
+                    depth: 2.25
+                },
+                scene
+            );
+
+        right.parent = root;
+
+        right.position.set(
+            1.30,
+            1.22,
+            0
+        );
+
+        right.material = glassMat;
+
+
+        // LIQUID
+
+        const liquid =
+            BABYLON.MeshBuilder.CreateBox(
+                name + "_liquid",
+                {
+                    width: 2.35,
+                    height: 0.08,
+                    depth: 1.90
+                },
+                scene
+            );
+
+        liquid.parent = root;
+        liquid.position.y = 0.28;
+        liquid.material = data.material;
+
+
+        return {
+            root: root,
+            liquid: liquid
+        };
+    }
+
+
+    // =========================================================
+    // 12. CREATE EXPERIMENT
+    // =========================================================
+
+    function createExperiment(
+        name,
+        x,
+        data
+    ) {
+
+        const root =
+            new BABYLON.TransformNode(
+                name + "_experiment",
+                scene
+            );
+
+
+        // PIPE
+
+        const pipeLength = 7.0;
+        const pipeRadius = 0.50;
+        const outletY = 3.35;
+
+
+        // OUTLET SELALU DI ATAS WADAH
+
+        const outlet =
+            new BABYLON.Vector3(
+                x,
+                outletY,
+                0
+            );
+
+
+        let angleRad =
+            BABYLON.Tools.ToRadians(
+                angleDeg
+            );
+
+
+        let direction =
+            new BABYLON.Vector3(
+                Math.cos(angleRad),
+                -Math.sin(angleRad),
+                0
+            );
+
+
+        let pipeCenter =
+            outlet.subtract(
+                direction.scale(
+                    pipeLength / 2
+                )
+            );
+
+
+        // PIPE ROOT
+
+        const pipeRoot =
+            new BABYLON.TransformNode(
+                name + "_pipeRoot",
+                scene
+            );
+
+        pipeRoot.position.copyFrom(
+            pipeCenter
+        );
+
+        pipeRoot.rotation.z =
+            -(angleRad + Math.PI / 2);
+
+
+        // PIPE
+
+        const pipe =
+            BABYLON.MeshBuilder.CreateCylinder(
+                name + "_pipe",
+                {
+                    height: pipeLength,
+                    diameter: pipeRadius * 2,
+                    tessellation: 64
+                },
+                scene
+            );
+
+        pipe.parent = pipeRoot;
+        pipe.position.y = 0;
+        pipe.material = glassMat;
+
+
+        // RING 1
+
+        const ring1 =
+            BABYLON.MeshBuilder.CreateTorus(
+                name + "_ring1",
+                {
+                    diameter:
+                        pipeRadius * 2.08,
+                    thickness: 0.065,
+                    tessellation: 48
+                },
+                scene
+            );
+
+        ring1.parent = pipeRoot;
+
+        ring1.position.y =
+            -pipeLength / 2;
+
+        ring1.rotation.x =
+            Math.PI / 2;
+
+        ring1.material = rimMat;
+
+
+        // RING 2
+
+        const ring2 =
+            BABYLON.MeshBuilder.CreateTorus(
+                name + "_ring2",
+                {
+                    diameter:
+                        pipeRadius * 2.08,
+                    thickness: 0.065,
+                    tessellation: 48
+                },
+                scene
+            );
+
+        ring2.parent = pipeRoot;
+
+        ring2.position.y =
+            pipeLength / 2;
+
+        ring2.rotation.x =
+            Math.PI / 2;
+
+        ring2.material = rimMat;
+
+
+        // BEAKER
+
+        const beaker =
+            createBeaker(
+                name + "_beaker",
+                outlet.x,
+                data
+            );
+
+
+        // =====================================================
+        // LIQUID AWAL
+        // =====================================================
+
+        const liquidLength =
+            pipeLength * 0.50;
+
+
+        const liquid =
+            BABYLON.MeshBuilder.CreateCylinder(
+                name + "_liquidSlug",
+                {
+                    height: liquidLength,
+                    diameter:
+                        pipeRadius * 1.72,
+                    tessellation: 48
+                },
+                scene
+            );
+
+        liquid.parent = pipeRoot;
+
+        liquid.position.y =
+            -pipeLength / 2 +
+            liquidLength / 2;
+
+        liquid.material =
+            data.material;
+
+
+        // =====================================================
+        // PARTICLES
+        // =====================================================
+
+        const pipeParticles = [];
+
+        const particleCount = 28;
+
+
+        for (
+            let i = 0;
+            i < particleCount;
+            i++
+        ) {
+
+            const p =
+                BABYLON.MeshBuilder.CreateSphere(
+                    name +
+                    "_particle_" +
+                    i,
+                    {
+                        diameter: 0.11,
+                        segments: 8
+                    },
+                    scene
+                );
+
+            p.parent = pipeRoot;
+
+            const t =
+                i /
+                (particleCount - 1);
+
+
+            p.position.y =
+                -pipeLength / 2 +
+                0.35 +
+                t *
+                (
+                    liquidLength -
+                    0.7
+                );
+
+
+            p.position.x =
+                Math.sin(
+                    i * 2.4
+                ) * 0.15;
+
+
+            p.position.z =
+                Math.cos(
+                    i * 1.7
+                ) * 0.15;
+
+
+            p.material =
+                data.material;
+
+
+            pipeParticles.push({
+                mesh: p,
+                offset: t
+            });
+        }
+
+
+        // =====================================================
+        // FALLING DROPS
+        // =====================================================
+
+        const falling = [];
+
+
+        for (
+            let i = 0;
+            i < 18;
+            i++
+        ) {
+
+            const d =
+                BABYLON.MeshBuilder.CreateSphere(
+                    name +
+                    "_drop_" +
+                    i,
+                    {
+                        diameter: 0.14,
+                        segments: 10
+                    },
+                    scene
+                );
+
+            d.parent = root;
+            d.material = data.material;
+            d.setEnabled(false);
+
+
+            falling.push({
+                mesh: d,
+                active: false,
+                time: 0,
+                delay: i * 0.13
+            });
+        }
+
+
+        // =====================================================
+        // STREAM
+        // =====================================================
+
+        const stream = [];
+
+
+        for (
+            let i = 0;
+            i < 14;
+            i++
+        ) {
+
+            const s =
+                BABYLON.MeshBuilder.CreateSphere(
+                    name +
+                    "_stream_" +
+                    i,
+                    {
+                        diameter: 0.17,
+                        segments: 10
+                    },
+                    scene
+                );
+
+            s.parent = root;
+            s.material = data.material;
+            s.setEnabled(false);
+
+
+            stream.push({
+                mesh: s,
+                t: i / 13
+            });
+        }
+
+
+        // =====================================================
+        // SURFACE
+        // =====================================================
+
+        const surface =
+            BABYLON.MeshBuilder.CreateDisc(
+                name + "_surface",
+                {
+                    radius: 1.0,
+                    tessellation: 48
+                },
+                scene
+            );
+
+        surface.parent =
+            beaker.root;
+
+        surface.rotation.x =
+            Math.PI / 2;
+
+        surface.position.y =
+            0.36;
+
+        surface.scaling.x =
+            1.2;
+
+        surface.material =
+            data.material;
+
+
+        // =====================================================
+        // RIPPLE
+        // =====================================================
+
+        const ripple =
+            BABYLON.MeshBuilder.CreateTorus(
+                name + "_ripple",
+                {
+                    diameter: 0.42,
+                    thickness: 0.035,
+                    tessellation: 48
+                },
+                scene
+            );
+
+        ripple.parent =
+            beaker.root;
+
+        ripple.rotation.x =
+            Math.PI / 2;
+
+        ripple.position.y =
+            0.42;
+
+        ripple.material =
+            data.material;
+
+        ripple.visibility = 0.5;
+
+
+        // =====================================================
+        // STATE
+        // =====================================================
+
+        let pipeProgress = 0;
+        let elapsed = 0;
+        let collected = 0;
+
+
+        // =====================================================
+        // RESET
+        // =====================================================
+
+        function reset() {
+
+            pipeProgress = 0;
+            elapsed = 0;
+            collected = 0;
+
+
+            const fill =
+                Math.max(
+                    0.35,
+                    Math.min(
+                        1,
+                        volume / 100
+                    )
+                );
+
+
+            liquid.setEnabled(true);
+
+
+            liquid.scaling.x =
+                0.82 +
+                fill * 0.18;
+
+            liquid.scaling.y =
+                0.70 +
+                fill * 0.30;
+
+            liquid.scaling.z =
+                0.82 +
+                fill * 0.18;
+
+
+            liquid.position.y =
+                -pipeLength / 2 +
+                liquidLength / 2;
+
+
+            for (
+                const p of pipeParticles
+            ) {
+
+                p.mesh.setEnabled(true);
+
+                const t =
+                    p.offset;
+
+                p.mesh.position.y =
+                    -pipeLength / 2 +
+                    0.35 +
+                    t *
+                    (
+                        liquidLength -
+                        0.7
+                    );
+            }
+
+
+            for (
+                const d of falling
+            ) {
+
+                d.mesh.setEnabled(false);
+                d.active = false;
+                d.time = 0;
+            }
+
+
+            for (
+                const s of stream
+            ) {
+
+                s.mesh.setEnabled(false);
+            }
+
+
+            surface.position.y =
+                0.36;
+
+            ripple.scaling.x = 1;
+            ripple.scaling.z = 1;
+        }
+
+
+        // =====================================================
+        // UPDATE
+        // =====================================================
+
+        function update(dt) {
+
+            if (!running)
+                return;
+
+
+            const temperatureFactor =
+                Math.max(
+                    0.35,
+                    1 +
+                    (
+                        temperature -
+                        25
+                    ) *
+                    0.018
+                );
+
+
+            const volumeFactor =
+                0.65 +
+                (
+                    volume / 100
+                ) *
+                0.35;
+
+
+            const speed =
+                data.speed *
+                temperatureFactor *
+                volumeFactor;
+
+
+            pipeProgress +=
+                dt *
+                speed *
+                0.20;
+
+            elapsed += dt;
+
+
+            // LIQUID DI DALAM PIPA
+
+            const movement =
+                Math.min(
+                    pipeProgress,
+                    1
+                );
+
+
+            liquid.position.y =
+                -pipeLength / 2 +
+                liquidLength / 2 +
+                movement *
+                pipeLength *
+                0.52;
+
+
+            const shrink =
+                Math.min(
+                    movement * 0.45,
+                    0.45
+                );
+
+
+            liquid.scaling.x =
+                (
+                    0.82 +
+                    volumeFactor *
+                    0.18
+                ) *
+                (
+                    1 - shrink
+                );
+
+
+            liquid.scaling.z =
+                (
+                    0.82 +
+                    volumeFactor *
+                    0.18
+                ) *
+                (
+                    1 - shrink
+                );
+
+
+            // PARTICLES
+
+            for (
+                const p of pipeParticles
+            ) {
+
+                const base =
+                    -pipeLength / 2 +
+                    0.35 +
+                    p.offset *
+                    (
+                        liquidLength -
+                        0.7
+                    );
+
+
+                p.mesh.position.y =
+                    base +
+                    movement *
+                    pipeLength *
+                    0.55;
+
+
+                if (
+                    p.mesh.position.y >
+                    pipeLength / 2
+                ) {
+
+                    p.mesh.setEnabled(false);
+                }
+            }
+
+
+            // STREAM
+
+            if (
+                pipeProgress >
+                0.55
+            ) {
+
+                const streamAmount =
+                    Math.min(
+                        (
+                            pipeProgress -
+                            0.55
+                        ) * 2,
+                        1
+                    );
+
+
+                for (
+                    const s of stream
+                ) {
+
+                    if (
+                        s.t <=
+                        streamAmount
+                    ) {
+
+                        s.mesh.setEnabled(true);
+
+
+                        const t =
+                            s.t;
+
+
+                        const startY =
+                            outlet.y;
+
+                        const targetY =
+                            0.85;
+
+
+                        const fallDistance =
+                            startY -
+                            targetY;
+
+
+                        const y =
+                            startY -
+                            fallDistance *
+                            t *
+                            t;
+
+
+                        const x =
+                            outlet.x +
+                            Math.sin(
+                                t *
+                                Math.PI *
+                                0.18
+                            ) *
+                            0.20;
+
+
+                        const z =
+                            Math.sin(
+                                t *
+                                Math.PI *
+                                2
+                            ) *
+                            0.03;
+
+
+                        s.mesh.position.set(
+                            x,
+                            y,
+                            z
+                        );
+
+                    }
+                    else {
+
+                        s.mesh.setEnabled(false);
+                    }
+                }
+
+            }
+            else {
+
+                for (
+                    const s of stream
+                ) {
+
+                    s.mesh.setEnabled(false);
+                }
+            }
+
+
+            // DROPS
+
+            for (
+                const d of falling
+            ) {
+
+                if (
+                    pipeProgress >
+                    0.8 &&
+                    elapsed >
+                    d.delay
+                ) {
+
+                    if (!d.active) {
+
+                        d.active = true;
+                        d.time = 0;
+
+                        d.mesh.setEnabled(true);
+
+                        d.mesh.position.set(
+                            outlet.x,
+                            outlet.y,
+                            0
+                        );
+                    }
+
+
+                    d.time +=
+                        dt *
+                        data.speed *
+                        temperatureFactor;
+
+
+                    const t =
+                        d.time;
+
+
+                    const gravity = 8.5;
+
+
+                    const y =
+                        outlet.y -
+                        0.5 *
+                        gravity *
+                        t *
+                        t;
+
+
+                    const x =
+                        outlet.x +
+                        Math.sin(
+                            t * 3
+                        ) *
+                        0.04;
+
+
+                    d.mesh.position.set(
+                        x,
+                        y,
+                        0
+                    );
+
+
+                    if (
+                        y <= 0.75
+                    ) {
+
+                        d.active = false;
+
+                        d.mesh.setEnabled(
+                            false
+                        );
+
+                        collected +=
+                            0.01;
+
+                        ripple.scaling.x =
+                            1.4;
+
+                        ripple.scaling.z =
+                            1.4;
+                    }
+                }
+            }
+
+
+            // RIPPLE
+
+            ripple.scaling.x +=
+                dt * 0.5;
+
+            ripple.scaling.z +=
+                dt * 0.5;
+
+
+            if (
+                ripple.scaling.x >
+                2
+            ) {
+
+                ripple.scaling.x = 1;
+                ripple.scaling.z = 1;
+            }
+
+
+            // LEVEL
+
+            const level =
+                Math.min(
+                    collected * 0.25,
+                    1.3
+                );
+
+
+            surface.position.y =
+                0.36 +
+                level * 0.2;
+
+
+            // EMPTY
+
+            if (
+                pipeProgress >
+                2.5
+            ) {
+
+                pipeProgress = 2.5;
+
+                liquid.setEnabled(false);
+            }
+        }
+
+
+        // =====================================================
+        // CHANGE ANGLE
+        // =====================================================
+
+        function setAngle(
+            newAngle
+        ) {
+
+            angleRad =
+                BABYLON.Tools.ToRadians(
+                    newAngle
+                );
+
+
+            direction =
+                new BABYLON.Vector3(
+                    Math.cos(angleRad),
+                    -Math.sin(angleRad),
+                    0
+                );
+
+
+            const newOutlet =
+                new BABYLON.Vector3(
+                    beaker.root.position.x,
+                    outletY,
+                    0
+                );
+
+
+            pipeCenter =
+                newOutlet.subtract(
+                    direction.scale(
+                        pipeLength / 2
+                    )
+                );
+
+
+            pipeRoot.position.copyFrom(
+                pipeCenter
+            );
+
+
+            pipeRoot.rotation.z =
+                -(
+                    angleRad +
+                    Math.PI / 2
+                );
+
+
+            outlet.copyFrom(
+                newOutlet
+            );
+
+
+            reset();
+        }
+
+
+        // =====================================================
+        // CHANGE VOLUME
+        // =====================================================
+
+        function setVolume(
+            newVolume
+        ) {
+
+            const fill =
+                Math.max(
+                    0.35,
+                    Math.min(
+                        1,
+                        newVolume / 100
+                    )
+                );
+
+
+            liquid.scaling.x =
+                0.82 +
+                fill * 0.18;
+
+
+            liquid.scaling.y =
+                0.70 +
+                fill * 0.30;
+
+
+            liquid.scaling.z =
+                0.82 +
+                fill * 0.18;
+        }
+
+
+        reset();
+
+
+        return {
+
+            name: name,
+
+            root: root,
+
+            pipeRoot: pipeRoot,
+
+            pipe: pipe,
+
+            liquid: liquid,
+
+            beaker: beaker,
+
+            outlet: outlet,
+
+            update: update,
+
+            reset: reset,
+
+            setAngle: setAngle,
+
+            setVolume: setVolume,
+
+            data: data
+        };
+    }
+
+
+    // =========================================================
+    // 13. BUILD EXPERIMENTS
+    // =========================================================
+
+    function rebuildExperiments() {
+
+        for (
+            const e of experiments
+        ) {
+
+            e.root.dispose();
+            e.pipeRoot.dispose();
+            e.beaker.root.dispose();
+        }
+
+
+        experiments.length = 0;
+
+
+        const active =
+            Object.keys(
+                selectedLiquids
+            ).filter(
+                k =>
+                    selectedLiquids[k]
+            );
+
+
+        const positions =
+            active.length === 2
+                ? [-3.8, 3.8]
+                : [-5.5, 0, 5.5];
+
+
+        active.forEach(
+            (name, i) => {
+
+                const e =
+                    createExperiment(
+                        name,
+                        positions[i],
+                        liquidData[name]
+                    );
+
+                experiments.push(e);
+            }
+        );
+    }
+
+
+    // =========================================================
+    // 14. GUI
+    // =========================================================
+
+    const gui =
+        BABYLON.GUI
+        .AdvancedDynamicTexture
+        .CreateFullscreenUI(
+            "GUI",
+            true,
+            scene
+        );
+
+
+    gui.rootContainer.isPointerBlocker =
+        true;
+
+
+    // =========================================================
+    // PANEL HELPER
+    // =========================================================
+
+    function createPanel(
+        width,
+        height
+    ) {
+
+        const panel =
+            new BABYLON.GUI.Rectangle();
+
+
+        panel.width = width;
+        panel.height = height;
+
+        panel.cornerRadius = 14;
+
+        panel.thickness = 1;
+
+        panel.color =
+            "#B8C5D6";
+
+        panel.background =
+            "#101927";
+
+        panel.isPointerBlocker =
+            true;
+
+
+        return panel;
+    }
+
+
+    // =========================================================
+    // TEXT HELPER
+    // =========================================================
+
+    function textBlock(
+        text,
+        size = 14
+    ) {
+
+        const t =
+            new BABYLON.GUI.TextBlock();
+
+        t.text = text;
+
+        t.color = "white";
+
+        t.fontSize = size;
+
+        t.height = "24px";
+
+        t.textHorizontalAlignment =
+            BABYLON.GUI.Control
+            .HORIZONTAL_ALIGNMENT_LEFT;
+
+
+        return t;
+    }
+
+
+    // =========================================================
+    // LEFT PANEL
+    // =========================================================
+
+    const leftPanel =
+        createPanel(
+            "235px",
+            "485px"
+        );
+
+
+    leftPanel.horizontalAlignment =
+        BABYLON.GUI.Control
+        .HORIZONTAL_ALIGNMENT_LEFT;
+
+
+    leftPanel.verticalAlignment =
+        BABYLON.GUI.Control
+        .VERTICAL_ALIGNMENT_CENTER;
+
+
+    leftPanel.left =
+        "10px";
+
+
+    gui.addControl(
+        leftPanel
+    );
+
+
+    const leftStack =
+        new BABYLON.GUI.StackPanel();
+
+
+    leftStack.width =
+        "205px";
+
+
+    leftStack.spacing = 4;
+
+
+    leftPanel.addControl(
+        leftStack
+    );
+
+
+    // =========================================================
+    // TITLE
+    // =========================================================
+
+    const title =
+        textBlock(
+            "PENGATURAN SIMULASI",
+            16
+        );
+
+
+    title.height =
+        "32px";
+
+
+    title.textHorizontalAlignment =
+        BABYLON.GUI.Control
+        .HORIZONTAL_ALIGNMENT_CENTER;
+
+
+    leftStack.addControl(
+        title
+    );
+
+
+    const choose =
+        textBlock(
+            "Pilih cairan",
+            14
+        );
+
+
+    choose.height =
+        "24px";
+
+
+    choose.textHorizontalAlignment =
+        BABYLON.GUI.Control
+        .HORIZONTAL_ALIGNMENT_CENTER;
+
+
+    leftStack.addControl(
+        choose
+    );
+
+
+    // =========================================================
+    // CHECKBOX
+    // =========================================================
+
+    function addCheckbox(
+        name
+    ) {
+
+        const row =
+            new BABYLON.GUI.StackPanel();
+
+
+        row.isVertical = false;
+
+        row.height =
+            "28px";
+
+
+        const box =
+            new BABYLON.GUI.Checkbox();
+
+
+        box.width =
+            "20px";
+
+        box.height =
+            "20px";
+
+
+        box.isChecked =
+            selectedLiquids[name];
+
+
+        box.color =
+            "#FFFFFF";
+
+        box.background =
+            "#202936";
+
+        box.isPointerBlocker =
+            true;
+
+
+        box.onIsCheckedChangedObservable
+            .add(
+                function(value) {
+
+                    selectedLiquids[name] =
+                        value;
+
+
+                    const count =
+                        Object.values(
+                            selectedLiquids
+                        )
+                        .filter(
+                            Boolean
+                        )
+                        .length;
+
+
+                    if (
+                        count < 2
+                    ) {
+
+                        box.isChecked =
+                            true;
+
+                        selectedLiquids[name] =
+                            true;
+
+                        return;
+                    }
+
+
+                    rebuildExperiments();
+
+                    updateDataPanel();
+                }
+            );
+
+
+        row.addControl(
+            box
+        );
+
+
+        const label =
+            textBlock(
+                name,
+                14
+            );
+
+
+        label.width =
+            "150px";
+
+        label.height =
+            "24px";
+
+        label.paddingLeft =
+            "8px";
+
+
+        row.addControl(
+            label
+        );
+
+
+        leftStack.addControl(
+            row
+        );
+    }
+
+
+    addCheckbox("Air");
+    addCheckbox("Minyak");
+    addCheckbox("Madu");
+
+
+    // =========================================================
+    // SLIDER
+    // =========================================================
+
+    function addSlider(
+        min,
+        max,
+        value,
+        callback
+    ) {
+
+        const slider =
+            new BABYLON.GUI.Slider();
+
+
+        slider.minimum = min;
+
+        slider.maximum = max;
+
+        slider.value = value;
+
+
+        slider.height =
+            "15px";
+
+        slider.width =
+            "200px";
+
+
+        slider.color =
+            "#61A9FF";
+
+        slider.background =
+            "#394452";
+
+
+        slider.isPointerBlocker =
+            true;
+
+
+        slider.onValueChangedObservable
+            .add(
+                callback
+            );
+
+
+        leftStack.addControl(
+            slider
+        );
+
+
+        return slider;
+    }
+
+
+    // =========================================================
+    // ANGLE
+    // =========================================================
+
+    const angleLabel =
+        textBlock(
+            "Sudut pipa: 30°",
+            13
+        );
+
+
+    leftStack.addControl(
+        angleLabel
+    );
+
+
+    addSlider(
+        20,
+        40,
+        30,
+        function(value) {
+
+            angleDeg =
+                Math.round(value);
+
+
+            angleLabel.text =
+                "Sudut pipa: " +
+                angleDeg +
+                "°";
+
+
+            for (
+                const e of experiments
+            ) {
+
+                e.setAngle(
+                    angleDeg
+                );
+            }
+        }
+    );
+
+
+    // =========================================================
+    // VOLUME
+    // =========================================================
+
+    const volumeLabel =
+        textBlock(
+            "Volume: 70%",
+            13
+        );
+
+
+    leftStack.addControl(
+        volumeLabel
+    );
+
+
+    addSlider(
+        20,
+        100,
+        70,
+        function(value) {
+
+            volume =
+                Math.round(value);
+
+
+            volumeLabel.text =
+                "Volume: " +
+                volume +
+                "%";
+
+
+            for (
+                const e of experiments
+            ) {
+
+                e.setVolume(
+                    volume
+                );
+            }
+
+
+            updateDataPanel();
+        }
+    );
+
+
+    // =========================================================
+    // TEMPERATURE
+    // =========================================================
+
+    const temperatureLabel =
+        textBlock(
+            "Temperatur: 25 °C",
+            13
+        );
+
+
+    leftStack.addControl(
+        temperatureLabel
+    );
+
+
+    addSlider(
+        10,
+        60,
+        25,
+        function(value) {
+
+            temperature =
+                Math.round(value);
+
+
+            temperatureLabel.text =
+                "Temperatur: " +
+                temperature +
+                " °C";
+
+
+            updateDataPanel();
+        }
+    );
+
+
+    // =========================================================
+    // BUTTON
+    // =========================================================
+
+    function createButton(
+        text,
+        callback
+    ) {
+
+        const button =
+            BABYLON.GUI.Button
+            .CreateSimpleButton(
+                "btn_" +
+                Math.random(),
+                text
+            );
+
+
+        button.width =
+            "200px";
+
+
+        button.height =
+            "32px";
+
+
+        button.cornerRadius =
+            8;
+
+
+        button.color =
+            "white";
+
+
+        button.background =
+            "#168A45";
+
+
+        button.thickness =
+            1;
+
+
+        button.isPointerBlocker =
+            true;
+
+
+        button.onPointerClickObservable
+            .add(
+                callback
+            );
+
+
+        leftStack.addControl(
+            button
+        );
+
+
+        return button;
+    }
+
+
+    // =========================================================
+    // MULAI
+    // =========================================================
+
+    createButton(
+        "▶  MULAI",
+        function() {
+
+            running = true;
+        }
+    );
+
+
+    // =========================================================
+    // JEDA
+    // =========================================================
+
+    const pauseButton =
+        createButton(
+            "Ⅱ  JEDA",
+            function() {
+
+                running = false;
+            }
+        );
+
+
+    pauseButton.background =
+        "#A65318";
+
+
+    // =========================================================
+    // RESET
+    // =========================================================
+
+    const resetButton =
+        createButton(
+            "↻  RESET",
+            function() {
+
+                running = false;
+
+
+                for (
+                    const e of experiments
+                ) {
+
+                    e.reset();
+                }
+
+
+                updateDataPanel();
+            }
+        );
+
+
+    resetButton.background =
+        "#A51F1F";
+
+
+    // =========================================================
+    // 15. RIGHT DATA PANEL
+    // =========================================================
+
+    const rightPanel =
+        createPanel(
+            "245px",
+            "395px"
+        );
+
+
+    rightPanel.horizontalAlignment =
+        BABYLON.GUI.Control
+        .HORIZONTAL_ALIGNMENT_RIGHT;
+
+
+    rightPanel.verticalAlignment =
+        BABYLON.GUI.Control
+        .VERTICAL_ALIGNMENT_CENTER;
+
+
+    rightPanel.left =
+        "-10px";
+
+
+    gui.addControl(
+        rightPanel
+    );
+
+
+    const dataStack =
+        new BABYLON.GUI.StackPanel();
+
+
+    dataStack.width =
+        "215px";
+
+
+    dataStack.spacing =
+        4;
+
+
+    rightPanel.addControl(
+        dataStack
+    );
+
+
+    // =========================================================
+    // DATA TITLE
+    // =========================================================
+
+    const dataTitle =
+        textBlock(
+            "DATA CAIRAN",
+            16
+        );
+
+
+    dataTitle.height =
+        "32px";
+
+
+    dataTitle.textHorizontalAlignment =
+        BABYLON.GUI.Control
+        .HORIZONTAL_ALIGNMENT_CENTER;
+
+
+    dataStack.addControl(
+        dataTitle
+    );
+
+
+    // =========================================================
+    // DATA TEXT
+    // =========================================================
+
+    const dataText =
+        textBlock(
+            "",
+            13
+        );
+
+
+    dataText.height =
+        "300px";
+
+
+    dataText.width =
+        "215px";
+
+
+    dataText.textWrapping =
+        true;
+
+
+    dataText.textHorizontalAlignment =
+        BABYLON.GUI.Control
+        .HORIZONTAL_ALIGNMENT_LEFT;
+
+
+    dataText.textVerticalAlignment =
+        BABYLON.GUI.Control
+        .VERTICAL_ALIGNMENT_TOP;
+
+
+    dataStack.addControl(
+        dataText
+    );
+
+
+    // =========================================================
+    // UPDATE DATA
+    // =========================================================
+
+    function updateDataPanel() {
+
+        let text = "";
+
+
+        Object.keys(
+            selectedLiquids
+        )
+        .forEach(
+            name => {
+
+                if (
+                    !selectedLiquids[name]
+                )
+                    return;
+
+
+                const d =
+                    liquidData[name];
+
+
+                const tempFactor =
+                    Math.max(
+                        0.25,
+                        1 -
+                        (
+                            temperature -
+                            25
+                        ) *
+                        0.012
+                    );
+
+
+                const viscosity =
+                    Math.max(
+                        0.25,
+                        d.viscosity *
+                        tempFactor
+                    );
+
+
+                const speed =
+                    d.speed *
+                    Math.max(
+                        0.35,
+                        1 +
+                        (
+                            temperature -
+                            25
+                        ) *
+                        0.018
+                    ) *
+                    (
+                        0.65 +
+                        (
+                            volume /
+                            100
+                        ) *
+                        0.35
+                    );
+
+
+                text +=
+                    name +
+                    "\n";
+
+
+                text +=
+                    "Viskositas: " +
+                    viscosity.toFixed(2) +
+                    " mPa·s\n";
+
+
+                text +=
+                    "Kecepatan relatif: " +
+                    speed.toFixed(2) +
+                    "\n\n";
+            }
+        );
+
+
+        text +=
+            "Semakin besar viskositas,\n" +
+            "semakin lambat aliran cairan.";
+
+
+        dataText.text =
+            text;
+    }
+
+
+    // =========================================================
+    // BUILD AWAL
+    // =========================================================
+    //
+    // PENTING:
+    // rebuild dilakukan setelah
+    // dataText sudah dibuat.
+    // =========================================================
+
+    rebuildExperiments();
+
+    updateDataPanel();
+
+
+    // =========================================================
+    // 16. MAIN TITLE
+    // =========================================================
+
+    const mainTitle =
+        new BABYLON.GUI.TextBlock();
+
+
+    mainTitle.text =
+        "SIMULASI VISKOSITAS 3D";
+
+
+    mainTitle.color =
+        "white";
+
+
+    mainTitle.fontSize =
+        22;
+
+
+    mainTitle.fontWeight =
+        "bold";
+
+
+    mainTitle.height =
+        "45px";
+
+
+    mainTitle.width =
+        "500px";
+
+
+    mainTitle.top =
+        "8px";
+
+
+    mainTitle.horizontalAlignment =
+        BABYLON.GUI.Control
+        .HORIZONTAL_ALIGNMENT_CENTER;
+
+
+    mainTitle.verticalAlignment =
+        BABYLON.GUI.Control
+        .VERTICAL_ALIGNMENT_TOP;
+
+
+    gui.addControl(
+        mainTitle
+    );
+
+
+    // =========================================================
+    // 17. HINT
+    // =========================================================
+
+    const hint =
+        new BABYLON.GUI.TextBlock();
+
+
+    hint.text =
+        "Gerakkan kamera dengan mouse • Scroll untuk zoom";
+
+
+    hint.color =
+        "#B8C5D6";
+
+
+    hint.fontSize =
+        12;
+
+
+    hint.height =
+        "25px";
+
+
+    hint.bottom =
+        "8px";
+
+
+    hint.horizontalAlignment =
+        BABYLON.GUI.Control
+        .HORIZONTAL_ALIGNMENT_CENTER;
+
+
+    hint.verticalAlignment =
+        BABYLON.GUI.Control
+        .VERTICAL_ALIGNMENT_BOTTOM;
+
+
+    gui.addControl(
+        hint
+    );
+
+
+    // =========================================================
+    // 18. RENDER LOOP
+    // =========================================================
+
+    scene.onBeforeRenderObservable
+        .add(
+            function() {
+
+                const dt =
+                    Math.min(
+                        scene
+                            .getEngine()
+                            .getDeltaTime()
+                        / 1000,
+                        0.033
+                    );
+
+
+                const currentExperiments =
+                    experiments.slice();
+
+
+                for (
+                    const e of
+                    currentExperiments
+                ) {
+
+                    if (
+                        experiments.includes(e)
+                    ) {
+
+                        e.update(dt);
+                    }
+                }
+            }
+        );
+
+
+    // =========================================================
+    // 19. RETURN
+    // =========================================================
+
+    return scene;
+}
+const canvas=document.getElementById("renderCanvas");
+const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
+const scene=createScene(canvas,engine);
+engine.runRenderLoop(()=>scene.render());
+window.addEventListener("resize",()=>engine.resize());
+</script>
+</body>
+</html>
