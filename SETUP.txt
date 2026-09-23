@@ -1,0 +1,23 @@
+SETUP UJIAN AI VISKOLAB
+
+1. Buka project Apps Script yang dipakai oleh URL ujian ViskoLab.
+2. Ganti Code.gs dengan Code.gs pada folder ini.
+3. Buat/ganti file HTML bernama Ujian dengan Ujian.html pada folder ini.
+4. Buka Project Settings > Script Properties.
+5. Tambahkan:
+   GEMINI_API_KEY = API key Gemini milik project kamu.
+6. Deploy > Manage deployments > Edit deployment > New version > Deploy.
+7. Pastikan URL deployment tetap menjadi URL yang dipakai ViskoLab.
+8. Struktur sheet yang dipakai:
+   HASILUJIAN
+   DETAIL ESAY
+   KUNCI PG
+   Script akan membuat header jika sheet kosong.
+
+CATATAN:
+- PG dinilai otomatis oleh Code.gs.
+- 5 soal uraian per zona dinilai AI.
+- Ujian 1, 2, dan 3 memakai bank soal berbeda.
+- Nilai minimal 80.
+- Hasil, kelemahan, kisi-kisi, dan feedback AI dikirim kembali ke ViskoLab melalui postMessage.
+- Jangan menaruh GEMINI_API_KEY di Ujian.html.
